@@ -1,0 +1,7 @@
+[package]
+name = "node_semver"
+version = "0.0.1"
+edition = "2021"
+authors = ["Emanuele Stoppa"]
+repository = "https://github.com/ematipico/node_semver"
+license = "MIT"
