@@ -4,6 +4,7 @@ use std::iter::{FusedIterator, Peekable};
 use std::str::Chars;
 
 struct Parser<'a> {
+    #[allow(dead_code)]
     source: &'a str,
     versions: Peekable<Chars<'a>>,
 }
@@ -78,7 +79,7 @@ pub fn parse(input: &str) -> Result<Version, ParseError> {
 mod test {
     use crate::error::ParseError;
     use crate::parser::parse;
-    use crate::version::{ExactVersion, Version};
+    use crate::version::Version;
 
     fn assert_ok_parse(source: &str, expected_version: Version) {
         let result = parse(source);

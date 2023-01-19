@@ -2,6 +2,15 @@
 name = "node_semver"
 version = "0.0.1"
 edition = "2021"
-authors = ["Emanuele Stoppa"]
+authors = ["Emanuele Stoppa <my.burning@gmail.com>"]
 repository = "https://github.com/ematipico/node_semver"
-license = "MIT"
+description = "A parser of semver for npm/Node.js"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+homepage = "https://github.com/ematipico/node_semver"
+include = [
+    "**/*.rs",
+    "Cargo.toml",
+]
+keywords = [ "parser", "semver", "npm", "node" ]
+categories = ["parsing", "development-tools"]

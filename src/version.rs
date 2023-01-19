@@ -5,7 +5,13 @@ pub enum Version {
     #[default]
     None,
     ExactVersion(ExactVersion),
-    Range,
+    Range(RangeVersion),
+}
+
+#[derive(Debug, Default, Ord, Eq)]
+pub struct RangeVersion {
+    min: ExactVersion,
+    max: ExactVersion,
 }
 
 impl Version {
@@ -35,6 +41,7 @@ impl ExactVersion {
 }
 
 #[derive(Default, Copy, Clone, Eq, PartialEq, Hash, Debug, Ord, PartialOrd)]
+#[allow(dead_code)]
 pub(crate) enum Operator {
     #[default]
     Exact,
@@ -85,6 +92,33 @@ impl PartialOrd for ExactVersion {
     }
 }
 
+impl PartialEq for RangeVersion {
+    fn eq(&self, other: &Self) -> bool {
+        self.min.eq(&other.min) && self.max.eq(&other.max)
+    }
+}
+
+impl PartialOrd for RangeVersion {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.min.eq(&other.min) && self.max.eq(&other.max) {
+            return Some(Ordering::Equal);
+        }
+
+        if self.min.eq(&other.min) {
+            return self.max.partial_cmp(&other.max);
+        } else if self.max.eq(&other.max) {
+            return self.min.partial_cmp(&other.min);
+        } else {
+            let result = self.min.partial_cmp(&other.min);
+            if matches!(result, Some(Ordering::Equal)) {
+                self.max.partial_cmp(&other.max)
+            } else {
+                result
+            }
+        }
+    }
+}
+
 impl From<(u16, u16, u16)> for ExactVersion {
     fn from((major, minor, patch): (u16, u16, u16)) -> Self {
         Self {
@@ -120,18 +154,37 @@ impl From<u16> for ExactVersion {
 
 #[cfg(test)]
 mod test {
-    use crate::version::ExactVersion;
+    use crate::version::{ExactVersion, RangeVersion};
+    use crate::{range_ver, sem_ver};
 
     #[test]
-    fn ordering() {
-        assert_eq!(ExactVersion::from((0, 0, 0)), ExactVersion::from((0, 0, 0)));
-        assert!(ExactVersion::from((0, 0, 1)) > ExactVersion::from((0, 0, 0)));
-        assert!(ExactVersion::from((0, 0, 0)) < ExactVersion::from((0, 0, 1)));
-        assert!(ExactVersion::from((0, 1, 0)) > ExactVersion::from((0, 0, 1)));
-        assert_eq!(ExactVersion::from((0, 1, 0)), ExactVersion::from((0, 1, 0)));
-        assert!(ExactVersion::from((0, 1, 0)) < ExactVersion::from((0, 2, 1)));
-        assert!(ExactVersion::from((0, 2, 1)) > ExactVersion::from((0, 2, 0)));
-        assert!(ExactVersion::from((1, 2, 1)) < ExactVersion::from((2, 2, 1)));
-        assert!(ExactVersion::from((4, 2, 1)) > ExactVersion::from((2, 2, 1)));
+    fn ordering_range_version() {
+        assert_eq!(
+            range_ver!(sem_ver!(0, 0, 0), sem_ver!(0, 0, 0)),
+            range_ver!(sem_ver!(0, 0, 0), sem_ver!(0, 0, 0))
+        );
+
+        assert!(
+            range_ver!(sem_ver!(0, 0, 1), sem_ver!(0, 0, 0))
+                > range_ver!(sem_ver!(0, 0, 0), sem_ver!(0, 0, 0))
+        );
+
+        assert!(
+            range_ver!(sem_ver!(0, 0, 1), sem_ver!(0, 0, 0))
+                < range_ver!(sem_ver!(0, 0, 2), sem_ver!(0, 0, 0))
+        );
+    }
+
+    #[test]
+    fn ordering_exact_version() {
+        assert_eq!(sem_ver!(0, 0, 0), sem_ver!(0, 0, 0));
+        assert!(sem_ver!(0, 0, 1) > sem_ver!(0, 0, 0));
+        assert!(sem_ver!(0, 0, 0) < sem_ver!(0, 0, 1));
+        assert!(sem_ver!(0, 1, 0) > sem_ver!(0, 0, 1));
+        assert_eq!(sem_ver!(0, 1, 0), sem_ver!(0, 1, 0));
+        assert!(sem_ver!(0, 1, 0) < sem_ver!(0, 2, 1));
+        assert!(sem_ver!(0, 2, 1) > sem_ver!(0, 2, 0));
+        assert!(sem_ver!(1, 2, 1) < sem_ver!(2, 2, 1));
+        assert!(sem_ver!(4, 2, 1) > sem_ver!(2, 2, 1));
     }
 }

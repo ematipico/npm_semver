@@ -1,4 +1,5 @@
 mod error;
+pub(crate) mod macros;
 mod parser;
 mod version;
 
