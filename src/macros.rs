@@ -1,5 +1,5 @@
 #[macro_export]
-macro_rules! sem_ver {
+macro_rules! exact_version {
     ($major:literal) => {
         ExactVersion::from($major)
     };
@@ -8,6 +8,9 @@ macro_rules! sem_ver {
     };
     ($major:literal, $minor:literal, $patch:literal) => {
         ExactVersion::from(($major, $minor, $patch))
+    };
+    ($operator:literal, $major:literal, $minor:literal, $patch:literal) => {
+        ExactVersion::from(($operator, $major, $minor, $patch))
     };
 }
 

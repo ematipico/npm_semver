@@ -22,7 +22,7 @@ impl Version {
 
 #[derive(Debug, Default, Eq, Ord)]
 pub struct ExactVersion {
-    pub(crate) operatator: Operator,
+    pub(crate) operator: Operator,
     pub(crate) patch: Option<u16>,
     pub(crate) minor: Option<u16>,
     pub(crate) major: u16,
@@ -37,6 +37,10 @@ impl ExactVersion {
         } else if self.patch.is_none() {
             self.patch = Some(number)
         }
+    }
+
+    pub(crate) fn set_operator(&mut self, operator: Operator) {
+        self.operator = operator;
     }
 }
 
@@ -119,13 +123,24 @@ impl PartialOrd for RangeVersion {
     }
 }
 
+impl From<(&str, u16, u16, u16)> for ExactVersion {
+    fn from((operator, major, minor, patch): (&str, u16, u16, u16)) -> Self {
+        Self {
+            major,
+            minor: Some(minor),
+            patch: Some(patch),
+            operator: Operator::from(operator),
+        }
+    }
+}
+
 impl From<(u16, u16, u16)> for ExactVersion {
     fn from((major, minor, patch): (u16, u16, u16)) -> Self {
         Self {
             major,
             minor: Some(minor),
             patch: Some(patch),
-            operatator: Operator::default(),
+            operator: Operator::default(),
         }
     }
 }
@@ -136,7 +151,7 @@ impl From<(u16, u16)> for ExactVersion {
             major,
             minor: Some(minor),
             patch: None,
-            operatator: Operator::default(),
+            operator: Operator::default(),
         }
     }
 }
@@ -147,7 +162,23 @@ impl From<u16> for ExactVersion {
             major,
             minor: None,
             patch: None,
-            operatator: Operator::default(),
+            operator: Operator::default(),
+        }
+    }
+}
+
+impl From<&str> for Operator {
+    fn from(value: &str) -> Self {
+        match value {
+            ">" => Operator::Greater,
+            ">=" => Operator::GreaterEq,
+            "<" => Operator::Less,
+            "<=" => Operator::LessEq,
+            "~" => Operator::Tilde,
+            "=" => Operator::Exact,
+            "*" => Operator::Wildcard,
+            "^" => Operator::Caret,
+            _ => Operator::default(),
         }
     }
 }
@@ -155,36 +186,36 @@ impl From<u16> for ExactVersion {
 #[cfg(test)]
 mod test {
     use crate::version::{ExactVersion, RangeVersion};
-    use crate::{range_ver, sem_ver};
+    use crate::{exact_version, range_ver};
 
     #[test]
     fn ordering_range_version() {
         assert_eq!(
-            range_ver!(sem_ver!(0, 0, 0), sem_ver!(0, 0, 0)),
-            range_ver!(sem_ver!(0, 0, 0), sem_ver!(0, 0, 0))
+            range_ver!(exact_version!(0, 0, 0), exact_version!(0, 0, 0)),
+            range_ver!(exact_version!(0, 0, 0), exact_version!(0, 0, 0))
         );
 
         assert!(
-            range_ver!(sem_ver!(0, 0, 1), sem_ver!(0, 0, 0))
-                > range_ver!(sem_ver!(0, 0, 0), sem_ver!(0, 0, 0))
+            range_ver!(exact_version!(0, 0, 1), exact_version!(0, 0, 0))
+                > range_ver!(exact_version!(0, 0, 0), exact_version!(0, 0, 0))
         );
 
         assert!(
-            range_ver!(sem_ver!(0, 0, 1), sem_ver!(0, 0, 0))
-                < range_ver!(sem_ver!(0, 0, 2), sem_ver!(0, 0, 0))
+            range_ver!(exact_version!(0, 0, 1), exact_version!(0, 0, 0))
+                < range_ver!(exact_version!(0, 0, 2), exact_version!(0, 0, 0))
         );
     }
 
     #[test]
     fn ordering_exact_version() {
-        assert_eq!(sem_ver!(0, 0, 0), sem_ver!(0, 0, 0));
-        assert!(sem_ver!(0, 0, 1) > sem_ver!(0, 0, 0));
-        assert!(sem_ver!(0, 0, 0) < sem_ver!(0, 0, 1));
-        assert!(sem_ver!(0, 1, 0) > sem_ver!(0, 0, 1));
-        assert_eq!(sem_ver!(0, 1, 0), sem_ver!(0, 1, 0));
-        assert!(sem_ver!(0, 1, 0) < sem_ver!(0, 2, 1));
-        assert!(sem_ver!(0, 2, 1) > sem_ver!(0, 2, 0));
-        assert!(sem_ver!(1, 2, 1) < sem_ver!(2, 2, 1));
-        assert!(sem_ver!(4, 2, 1) > sem_ver!(2, 2, 1));
+        assert_eq!(exact_version!(0, 0, 0), exact_version!(0, 0, 0));
+        assert!(exact_version!(0, 0, 1) > exact_version!(0, 0, 0));
+        assert!(exact_version!(0, 0, 0) < exact_version!(0, 0, 1));
+        assert!(exact_version!(0, 1, 0) > exact_version!(0, 0, 1));
+        assert_eq!(exact_version!(0, 1, 0), exact_version!(0, 1, 0));
+        assert!(exact_version!(0, 1, 0) < exact_version!(0, 2, 1));
+        assert!(exact_version!(0, 2, 1) > exact_version!(0, 2, 0));
+        assert!(exact_version!(1, 2, 1) < exact_version!(2, 2, 1));
+        assert!(exact_version!(4, 2, 1) > exact_version!(2, 2, 1));
     }
 }
