@@ -14,3 +14,6 @@ include = [
 ]
 keywords = [ "parser", "semver", "npm", "node" ]
 categories = ["parsing", "development-tools"]
+
+[dependencies]
+nom = "7.1.3"

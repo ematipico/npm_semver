@@ -1,133 +1,86 @@
-use crate::error::ParseError;
-use crate::version::{ExactVersion, Operator, Version};
-use std::iter::{Enumerate, FusedIterator, Peekable};
-use std::str::Chars;
+use crate::version::Operator;
+use crate::{ExactVersion, SemverError, Version};
+use nom::branch::alt;
+use nom::bytes::complete::{tag, take_while1};
+use nom::character::complete::{char, digit1};
+use nom::combinator::{map, map_res, opt};
+use nom::error::{FromExternalError, ParseError};
+use nom::Err;
+use nom::IResult;
+use std::num::ParseIntError;
 
-struct Parser<'a> {
-    #[allow(dead_code)]
-    source: &'a str,
-    versions: Peekable<Enumerate<Chars<'a>>>,
-}
-
-impl<'a> Iterator for Parser<'a> {
-    type Item = (usize, char);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.versions.next()
+pub fn parse(source: &str) -> Result<Version, SemverError> {
+    let result = exact_version::<SemverError>(source);
+    match result {
+        Ok((_, exact_version)) => Ok(Version::ExactVersion(exact_version)),
+        Err(err) => match err {
+            Err::Error(e) | Err::Failure(e) => return Err(e),
+            _ => unreachable!("It should be incomplete"),
+        },
     }
 }
 
-impl<'a> FusedIterator for Parser<'a> {}
+fn exact_version<'a, E>(source: &'a str) -> IResult<&str, ExactVersion, E>
+where
+    E: ParseError<&'a str> + FromExternalError<&'a str, ParseIntError>,
+{
+    let (source, operator) = operator(source)?;
+    let (source, major) = major(source)?;
+    let (source, minor) = minor_or_patch(source)?;
+    let (source, patch) = minor_or_patch(source)?;
 
-impl<'a> Parser<'a> {
-    fn peek(&mut self) -> Option<&(usize, char)> {
-        self.versions.peek()
-    }
-
-    pub(crate) fn new(source: &'a str) -> Self {
-        Self {
-            source,
-            versions: source.chars().enumerate().peekable(),
-        }
-    }
-
-    fn parse(&mut self) -> Result<Version, ParseError> {
-        let version = Version::default();
-        match self.peek() {
-            Some(_) => self.inner_parse(),
-            None => {
-                if version.is_none() {
-                    Err(ParseError::Empty)
-                } else {
-                    Ok(version)
-                }
-            }
-        }
-    }
-
-    fn inner_parse(&mut self) -> Result<Version, ParseError> {
-        let mut exact_version = ExactVersion::default();
-        let mut digit_chars = vec![];
-
-        while let Some((index, piece)) = self.next() {
-            if let Some(operator) = self.extract_operator(index, piece) {
-                exact_version.set_operator(operator);
-                if matches!(operator, Operator::GreaterEq | Operator::LessEq) {
-                    self.next();
-                }
-            } else {
-                match piece {
-                    '.' => {
-                        let digit = digit_chars.drain(0..).collect::<String>();
-                        let result = digit
-                            .parse::<u16>()
-                            .or_else(|_| Err(ParseError::NotANumber(digit)))?;
-                        exact_version.set_digit(result);
-                    }
-
-                    _ => {
-                        digit_chars.push(piece);
-                    }
-                }
-            }
-        }
-        if !digit_chars.is_empty() {
-            let digit = digit_chars.drain(0..).collect::<String>();
-            let result = digit
-                .parse::<u16>()
-                .or_else(|_| Err(ParseError::NotANumber(digit)))?;
-            exact_version.set_digit(result);
-        }
-
-        Ok(Version::ExactVersion(exact_version))
-    }
-
-    fn extract_operator(&mut self, index: usize, piece: char) -> Option<Operator> {
-        if index == 0 {
-            let operator = match piece {
-                '>' if self
-                    .peek()
-                    .map(|(_, char)| *char == '=')
-                    .unwrap_or_default() =>
-                {
-                    Operator::GreaterEq
-                }
-                '<' if self
-                    .peek()
-                    .map(|(_, char)| *char == '=')
-                    .unwrap_or_default() =>
-                {
-                    Operator::LessEq
-                }
-                '>' => Operator::Greater,
-                '<' => Operator::Less,
-                '~' => Operator::Tilde,
-                '^' => Operator::Caret,
-                '=' => Operator::Exact,
-                _ => return None,
-            };
-
-            Some(operator)
-        } else {
-            None
-        }
-    }
+    Ok((
+        source,
+        ExactVersion {
+            operator: operator.unwrap_or_default(),
+            major,
+            minor,
+            patch,
+        },
+    ))
 }
 
-pub fn parse(input: &str) -> Result<Version, ParseError> {
-    Parser::new(input).parse()
+fn operator<'a, E: ParseError<&'a str>>(source: &'a str) -> IResult<&'a str, Option<Operator>, E> {
+    opt(alt((
+        // first multi chars
+        map(tag("<="), |_| Operator::LessEq),
+        map(tag(">="), |_| Operator::GreaterEq),
+        map(char('='), |_| Operator::Exact),
+        map(char('<'), |_| Operator::Less),
+        map(char('>'), |_| Operator::Greater),
+        map(char('^'), |_| Operator::Caret),
+        map(char('*'), |_| Operator::Wildcard),
+        map(char('~'), |_| Operator::Tilde),
+    )))(source)
+}
+
+fn major<'a, E: ParseError<&'a str>>(source: &'a str) -> IResult<&'a str, u16, E> {
+    map(take_while1(|c| (c as char).is_numeric()), |result: &str| {
+        result.parse::<u16>().unwrap()
+    })(source)
+}
+
+fn minor_or_patch<'a, E>(source: &'a str) -> IResult<&'a str, Option<u16>, E>
+where
+    E: ParseError<&'a str> + FromExternalError<&'a str, ParseIntError>,
+{
+    let (source, result) = opt(tag("."))(source)?;
+    if result.is_some() {
+        let (source, result) = map_res(digit1, |result: &str| result.parse::<u16>())(source)?;
+        Ok((source, Some(result)))
+    } else {
+        Ok((source, None))
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::error::ParseError;
-    use crate::exact_version;
     use crate::parser::parse;
-    use crate::version::{ExactVersion, Version};
+    use crate::{exact_version, ExactVersion, SemverError, Version};
 
     fn assert_ok_parse(source: &str, expected_version: Version) {
         let result = parse(source);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "instead got {result:?}");
         match result {
             Ok(version) => {
                 assert_eq!(version, expected_version);
@@ -138,9 +91,9 @@ mod test {
         }
     }
 
-    fn assert_err_parse(source: &str, expected_error: ParseError) {
+    fn assert_err_parse(source: &str, expected_error: SemverError) {
         let result = parse(source);
-        assert!(result.is_err());
+        assert!(result.is_err(), "instead got {result:?}");
         match result {
             Ok(version) => {
                 panic!("This error, instead got {version:?}");
@@ -152,29 +105,24 @@ mod test {
     }
 
     #[test]
-    fn major_ok() {
-        assert_ok_parse("1", Version::ExactVersion(1.into()))
-    }
-
-    #[test]
-    fn major_and_minor_ok() {
-        assert_ok_parse("1.1", Version::ExactVersion((1, 1).into()))
-    }
-
-    #[test]
-    fn major_and_minor_patch_ok() {
-        assert_ok_parse("1.56.3", Version::ExactVersion((1, 56, 3).into()))
+    fn ok() {
+        assert_ok_parse("1.0.0", Version::ExactVersion(exact_version!(1, 0, 0)));
+        assert_ok_parse("1.0", Version::ExactVersion(exact_version!(1, 0)));
+        assert_ok_parse("1", Version::ExactVersion(exact_version!(1)));
     }
 
     #[test]
     fn major_err() {
-        assert_err_parse("something", ParseError::NotANumber("something".to_string()))
+        assert_err_parse(
+            "something",
+            SemverError::NotANumber("something".to_string()),
+        )
     }
     #[test]
     fn minor_err() {
         assert_err_parse(
             "1.something",
-            ParseError::NotANumber("something".to_string()),
+            SemverError::NotANumber("something".to_string()),
         )
     }
 
@@ -214,7 +162,7 @@ mod test {
     fn patch_err() {
         assert_err_parse(
             "1.1.something",
-            ParseError::NotANumber("something".to_string()),
+            SemverError::NotANumber("something".to_string()),
         )
     }
 }
