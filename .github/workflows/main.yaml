@@ -45,12 +45,11 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --workspace --all-targets --all-features --verbose -- --deny warnings -W clippy::cargo -W clippy::dbg_macro -A clippy::cargo_common_metadata
+          args: --all-targets --all-features -- --deny warnings -W clippy::cargo -W clippy::dbg_macro -A clippy::cargo_common_metadata
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
-          command: check
-          args: --workspace --all-targets --all-features --release
+          command: lint
 
   check-dependencies:
     name: Check Dependencies

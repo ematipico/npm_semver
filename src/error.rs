@@ -1,4 +1,4 @@
-use nom::error::{ErrorKind, FromExternalError, ParseError};
+use nom::error::{ContextError, ErrorKind, FromExternalError, ParseError};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::num::ParseIntError;
@@ -7,6 +7,7 @@ use std::num::ParseIntError;
 pub enum SemverError {
     Empty,
     NotANumber(String),
+    IncorrectSeparator,
 }
 
 impl Error for SemverError {}
@@ -26,13 +27,19 @@ impl Display for SemverError {
             SemverError::NotANumber(source) => {
                 write!(f, "{source} is not a number")
             }
+            SemverError::IncorrectSeparator => {
+                write!(f, "incorrect separator for ranges")
+            }
         }
     }
 }
 
 impl ParseError<&str> for SemverError {
-    fn from_error_kind(input: &str, _kind: ErrorKind) -> Self {
-        SemverError::NotANumber(input.to_string())
+    fn from_error_kind(input: &str, kind: ErrorKind) -> Self {
+        match kind {
+            ErrorKind::Tag => SemverError::IncorrectSeparator,
+            _ => SemverError::NotANumber(input.to_string()),
+        }
     }
 
     fn append(input: &str, _kind: ErrorKind, _other: Self) -> Self {
@@ -45,3 +52,5 @@ impl FromExternalError<&str, ParseIntError> for SemverError {
         Self::NotANumber(input.to_string())
     }
 }
+
+impl ContextError<&str> for SemverError {}

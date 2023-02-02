@@ -1,0 +1,2 @@
+[alias]
+lint = "clippy --all-targets --verbose -- --deny warnings -W clippy::cargo -W clippy::dbg_macro -A clippy::cargo_common_metadata"
