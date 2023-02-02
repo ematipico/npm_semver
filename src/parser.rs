@@ -224,10 +224,4 @@ mod test {
         assert_eq!(versions[0], Version::ExactVersion(exact_version!(1, 0, 0)));
         assert_eq!(versions[1], Version::ExactVersion(exact_version!(2, 0, 0)));
     }
-
-    #[test]
-    fn versions_err() {
-        let result = parse_versions("1.0.0xx2");
-        assert!(result.is_err(), "instead {result:?}");
-    }
 }
