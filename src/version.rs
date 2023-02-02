@@ -1,47 +1,26 @@
 use std::cmp::Ordering;
 
-#[derive(Debug, Default, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub enum Version {
-    #[default]
-    None,
     ExactVersion(ExactVersion),
     Range(RangeVersion),
 }
 
-#[derive(Debug, Default, Ord, Eq)]
+#[derive(Debug, Default, Eq)]
 pub struct RangeVersion {
     min: ExactVersion,
     max: ExactVersion,
 }
 
-impl Version {
-    pub const fn is_none(&self) -> bool {
-        matches!(self, Version::None)
-    }
-}
+impl Version {}
 
-#[derive(Debug, Default, Eq, Ord)]
+#[derive(Debug, Default, Eq)]
 pub struct ExactVersion {
+    #[allow(dead_code)]
     pub(crate) operator: Operator,
     pub(crate) patch: Option<u16>,
     pub(crate) minor: Option<u16>,
     pub(crate) major: u16,
-}
-
-impl ExactVersion {
-    pub(crate) fn set_digit(&mut self, number: u16) {
-        if self.major == u16::default() {
-            self.major = number;
-        } else if self.minor.is_none() {
-            self.minor = Some(number)
-        } else if self.patch.is_none() {
-            self.patch = Some(number)
-        }
-    }
-
-    pub(crate) fn set_operator(&mut self, operator: Operator) {
-        self.operator = operator;
-    }
 }
 
 #[derive(Default, Copy, Clone, Eq, PartialEq, Hash, Debug, Ord, PartialOrd)]
@@ -62,9 +41,11 @@ impl PartialEq for ExactVersion {
     fn eq(&self, other: &Self) -> bool {
         self.major == other.major && self.minor == other.minor && self.patch == other.patch
     }
+}
 
-    fn ne(&self, other: &Self) -> bool {
-        self.major != other.major || self.minor != other.minor || self.patch != other.patch
+impl Ord for ExactVersion {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap_or(Ordering::Equal)
     }
 }
 
@@ -78,18 +59,14 @@ impl PartialOrd for ExactVersion {
             Ordering::Greater
         } else if self.major < other.major {
             Ordering::Less
+        } else if self.minor > other.minor {
+            Ordering::Greater
+        } else if self.minor < other.minor {
+            Ordering::Less
+        } else if self.patch > other.patch {
+            Ordering::Greater
         } else {
-            if self.minor > other.minor {
-                Ordering::Greater
-            } else if self.minor < other.minor {
-                Ordering::Less
-            } else {
-                if self.patch > other.patch {
-                    Ordering::Greater
-                } else {
-                    Ordering::Less
-                }
-            }
+            Ordering::Less
         };
 
         Some(result)
@@ -109,9 +86,9 @@ impl PartialOrd for RangeVersion {
         }
 
         if self.min.eq(&other.min) {
-            return self.max.partial_cmp(&other.max);
+            self.max.partial_cmp(&other.max)
         } else if self.max.eq(&other.max) {
-            return self.min.partial_cmp(&other.min);
+            self.min.partial_cmp(&other.min)
         } else {
             let result = self.min.partial_cmp(&other.min);
             if matches!(result, Some(Ordering::Equal)) {
@@ -120,6 +97,12 @@ impl PartialOrd for RangeVersion {
                 result
             }
         }
+    }
+}
+
+impl Ord for RangeVersion {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap_or(Ordering::Equal)
     }
 }
 

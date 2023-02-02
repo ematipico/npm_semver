@@ -120,5 +120,5 @@ jobs:
       - name: Run doc command
         uses: actions-rs/cargo@v1
         with:
-          command: documentation
+          command: doc
 

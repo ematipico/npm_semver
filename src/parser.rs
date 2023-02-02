@@ -14,7 +14,7 @@ pub fn parse(source: &str) -> Result<Version, SemverError> {
     match result {
         Ok((_, exact_version)) => Ok(Version::ExactVersion(exact_version)),
         Err(err) => match err {
-            Err::Error(e) | Err::Failure(e) => return Err(e),
+            Err::Error(e) | Err::Failure(e) => Err(e),
             _ => unreachable!("It should be incomplete"),
         },
     }
@@ -55,7 +55,7 @@ fn operator<'a, E: ParseError<&'a str>>(source: &'a str) -> IResult<&'a str, Opt
 }
 
 fn major<'a, E: ParseError<&'a str>>(source: &'a str) -> IResult<&'a str, u16, E> {
-    map(take_while1(|c| (c as char).is_numeric()), |result: &str| {
+    map(take_while1(|c: char| c.is_numeric()), |result: &str| {
         result.parse::<u16>().unwrap()
     })(source)
 }
